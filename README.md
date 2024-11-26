@@ -24,7 +24,7 @@ A Telegram bot that provides real-time weather information for Singapore using t
 
 4. Run the bot:
    ```bash
-   python bot.py
+   python3 bot.py
    ```
 
 ## Usage
