@@ -1,23 +1,32 @@
-# Singapore Weather Bot
+# Telegram Weather Bot 🌤️
 
-A Telegram bot that provides real-time weather information for Singapore using the OpenWeather API.
+A multilingual Telegram bot for getting current weather information in different cities.
 
-## Features
+## 🌍 Supported Cities
 
-- Get current weather conditions in Singapore
+- Singapore
+- Beijing
+- Shanghai
+- Phuket
+
+## 🌟 Features
+
+- Get current weather for selected cities
 - Temperature in Celsius
 - Humidity levels
 - Wind speed
 - "Feels like" temperature
-- Weather description
+- Weather condition description
+- Fully multilingual interface
 
-## Setup
+## 🛠 Setup
 
-1. Clone this repository
+1. Clone the repository
 2. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
+
 3. Create a `.env` file based on `.env.example` and add your API keys:
    - Get a Telegram Bot Token from [@BotFather](https://t.me/BotFather)
    - Get an OpenWeather API key from [OpenWeather](https://openweathermap.org/api)
@@ -27,15 +36,21 @@ A Telegram bot that provides real-time weather information for Singapore using t
    python3 bot.py
    ```
 
-## Usage
+## 🤖 Usage
 
-- `/start` - Start the bot and see available commands
-- `/weather` - Get current weather information for Singapore
-- `/help` - Show help message
+- `/start` - Launch the bot and view available commands
+- `/weather` - Select a city and get current weather information
 
-## Requirements
+## 🔧 Requirements
 
 - Python 3.7+
 - pyTelegramBotAPI
 - requests
 - python-dotenv
+
+## 🌐 Technologies
+
+- Telegram Bot API
+- OpenWeather API
+- Docker for containerization
+- GitHub Actions for continuous deployment
