@@ -6,6 +6,10 @@ from dotenv import load_dotenv
 from travel_info import TRAVEL_INFO
 import traceback
 from datetime import datetime
+from telebot import apihelper
+
+# Enable middleware
+apihelper.ENABLE_MIDDLEWARE = True
 
 # Load environment variables
 load_dotenv()
