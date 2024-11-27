@@ -29,6 +29,11 @@ jobs:
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          build-args: |
+            TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
+            OPENWEATHER_API_KEY=${{ secrets.OPENWEATHER_API_KEY }}
+            ADMIN_TELEGRAM_ID=${{ secrets.ADMIN_TELEGRAM_ID }}
+            EXCHANGE_API_KEY=${{ secrets.EXCHANGE_API_KEY }}
 
   deploy:
     needs: build_and_push
@@ -56,4 +61,6 @@ jobs:
               --restart always \
               -e TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
               -e OPENWEATHER_API_KEY=${{ secrets.OPENWEATHER_API_KEY }} \
+              -e ADMIN_TELEGRAM_ID=${{ secrets.ADMIN_TELEGRAM_ID }} \
+              -e EXCHANGE_API_KEY=${{ secrets.EXCHANGE_API_KEY }} \
               ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
