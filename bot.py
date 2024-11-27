@@ -10,7 +10,7 @@ from datetime import datetime
 load_dotenv()
 
 # Initialize bot with your token
-bot = telebot.TeleBot(os.getenv('TELEGRAM_BOT_TOKEN'))
+bot = telebot.TeleBot(os.getenv('TELEGRAM_BOT_TOKEN2'))
 
 # OpenWeather API configuration
 OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
@@ -205,31 +205,45 @@ def handle_travel_selection(call):
     
     if city in TRAVEL_INFO:
         info = TRAVEL_INFO[city]
-        response = (
-            f"🌟 {city} 🌟\n\n"
-            f"📍 Описание:\n{info['description']}\n\n"
-            f"🎯 Главные достопримечательности:\n"
-        )
         
-        for attraction in info['attractions']:
-            response += f"• {attraction}\n"
-        
-        if 'photo_url' in info:
-            bot.send_photo(
-                call.message.chat.id,
-                info['photo_url'],
-                caption=response,
-                reply_markup=get_main_menu_markup()
+        try:
+            # Format the travel information
+            response = (
+                f"🌟 {city} 🌟\n\n"
+                f"🎯 Главные достопримечательности:\n\n"
             )
-            bot.delete_message(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id
-            )
-        else:
+            
+            for attraction in info['attractions']:
+                response += f"{attraction}\n"
+            
+            # Try to send photo with caption
+            try:
+                bot.send_photo(
+                    chat_id=call.message.chat.id,
+                    photo=info['photo_url'],
+                    caption=response,
+                    reply_markup=get_main_menu_markup()
+                )
+                # Delete the original message
+                bot.delete_message(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id
+                )
+            except Exception as photo_error:
+                print(f"Failed to send photo: {photo_error}")
+                # If photo fails, just send text
+                bot.edit_message_text(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    text=response,
+                    reply_markup=get_main_menu_markup()
+                )
+        except Exception as e:
+            print(f"Error handling travel info: {e}")
             bot.edit_message_text(
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
-                text=response,
+                text="Извините, произошла ошибка при получении информации. Попробуйте позже.",
                 reply_markup=get_main_menu_markup()
             )
 
