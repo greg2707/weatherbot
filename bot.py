@@ -347,13 +347,23 @@ def forward_to_admin(message):
 # Error handler for all other exceptions
 @bot.middleware_handler(update_types=['message', 'callback_query'])
 def error_handler(bot_instance, update):
+    """Handle errors from both message and callback query updates"""
     try:
-        raise
-    except Exception as e:
-        error_msg = f"Необработанная ошибка: {str(e)}"
-        user_info = update.message.from_user if hasattr(update, 'message') else update.callback_query.from_user
+        # Get user info based on update type
+        if isinstance(update, telebot.types.Message):
+            user_info = update.from_user
+        elif isinstance(update, telebot.types.CallbackQuery):
+            user_info = update.from_user
+        else:
+            user_info = None
+        
+        error_msg = "Необработанная ошибка в обработчике"
         send_error_to_admin(error_msg, user_info)
-        return True
+        
+    except Exception as e:
+        error_msg = f"Ошибка в обработчике ошибок: {str(e)}"
+        print(error_msg)  # Fallback logging if everything fails
+    return True
 
 # Start the bot
 if __name__ == '__main__':
