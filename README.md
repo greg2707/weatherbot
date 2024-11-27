@@ -18,6 +18,14 @@ A multilingual Telegram bot for getting current weather information in different
 - "Feels like" temperature
 - Weather condition description
 - Fully multilingual interface
+- Currency converter functionality for popular Asian destinations
+  - Supported currencies:
+    * Singapore Dollar (SGD)
+    * Thai Baht (THB)
+    * Chinese Yuan (CNY)
+  - Exchange rates relative to:
+    * US Dollar (USD)
+    * Russian Ruble (RUB)
 
 ## 🛠 Setup
 
@@ -30,6 +38,7 @@ A multilingual Telegram bot for getting current weather information in different
 3. Create a `.env` file based on `.env.example` and add your API keys:
    - Get a Telegram Bot Token from [@BotFather](https://t.me/BotFather)
    - Get an OpenWeather API key from [OpenWeather](https://openweathermap.org/api)
+   - Get an ExchangeRate API key from [ExchangeRate](https://www.exchangerate-api.com/)
 
 4. Run the bot:
    ```bash
@@ -40,6 +49,7 @@ A multilingual Telegram bot for getting current weather information in different
 
 - `/start` - Launch the bot and view available commands
 - `/weather` - Select a city and get current weather information
+- `/currency` - Convert currencies for popular Asian destinations
 
 ## 🔧 Requirements
 
@@ -52,5 +62,6 @@ A multilingual Telegram bot for getting current weather information in different
 
 - Telegram Bot API
 - OpenWeather API
+- ExchangeRate API
 - Docker for containerization
 - GitHub Actions for continuous deployment
