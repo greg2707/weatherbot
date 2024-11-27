@@ -4,12 +4,7 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 from travel_info import TRAVEL_INFO
-import traceback
 from datetime import datetime
-from telebot import apihelper
-
-# Enable middleware
-apihelper.ENABLE_MIDDLEWARE = True
 
 # Load environment variables
 load_dotenv()
@@ -23,54 +18,22 @@ WEATHER_URL = 'https://api.openweathermap.org/data/2.5/weather'
 EXCHANGE_API_KEY = os.getenv("EXCHANGE_API_KEY")
 
 # Admin configuration
-ADMIN_ID = os.getenv('ADMIN_TELEGRAM_ID')  # Your Telegram ID
+ADMIN_ID = os.getenv('ADMIN_TELEGRAM_ID')
 
 # City coordinates
 CITIES = {
     'Сингапур': {'lat': 1.29, 'lon': 103.85},
     'Пекин': {'lat': 39.90, 'lon': 116.41},
-    'Шанхай': {'lat': 31.22, 'lon': 121.48},
+    'Шанхай': {'lat': 31.23, 'lon': 121.47},
     'Пхукет': {'lat': 7.89, 'lon': 98.40}
 }
 
-# Currency information
+# Currency codes
 CURRENCIES = {
     'Сингапур': {'code': 'SGD', 'symbol': 'S$'},
     'Таиланд': {'code': 'THB', 'symbol': '฿'},
     'Китай': {'code': 'CNY', 'symbol': '¥'}
 }
-
-def send_error_to_admin(error_msg, user_info=None, additional_info=None):
-    """Send error information to admin"""
-    if not ADMIN_ID:
-        return
-    
-    try:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        error_text = f"🚨 Ошибка!\n\nВремя: {timestamp}\n"
-        
-        if user_info:
-            error_text += f"\n👤 Пользователь:\n"
-            error_text += f"ID: {user_info.id}\n"
-            error_text += f"Имя: {user_info.first_name}"
-            if user_info.last_name:
-                error_text += f" {user_info.last_name}"
-            if user_info.username:
-                error_text += f"\n@{user_info.username}"
-        
-        error_text += f"\n\n❌ Ошибка:\n{error_msg}"
-        
-        if additional_info:
-            error_text += f"\n\n📌 Доп. информация:\n{additional_info}"
-        
-        # Add stack trace for developer context
-        stack_trace = traceback.format_exc()
-        if stack_trace != "NoneType: None\n":
-            error_text += f"\n\n🔍 Stack Trace:\n{stack_trace}"
-        
-        bot.send_message(ADMIN_ID, error_text)
-    except Exception as e:
-        print(f"Failed to send error to admin: {e}")
 
 def get_weather(city):
     """Fetch weather data for a specific city from OpenWeather API"""
@@ -105,16 +68,10 @@ def get_weather(city):
             f"💧 Влажность: {weather_info['humidity']}%\n"
             f"💨 Скорость ветра: {weather_info['wind_speed']} км/ч"
         )
-    except requests.exceptions.RequestException as e:
-        error_msg = f"Ошибка при получении данных о погоде: {str(e)}"
-        send_error_to_admin(error_msg, additional_info=f"City: {city}")
-        return f"Извините, не удалось получить данные о погоде для {city}. Попробуйте позже."
     except Exception as e:
-        error_msg = f"Неизвестная ошибка при получении погоды: {str(e)}"
-        send_error_to_admin(error_msg, additional_info=f"City: {city}")
-        return f"Извините, произошла ошибка. Попробуйте позже."
+        return f"Извините, не удалось получить данные о погоде для {city}. Попробуйте позже."
 
-def get_exchange_rates(currency_code, user_info=None):
+def get_exchange_rates(currency_code):
     """Get exchange rates for a currency"""
     try:
         url = f'https://v6.exchangerate-api.com/v6/{EXCHANGE_API_KEY}/latest/{currency_code}'
@@ -134,14 +91,8 @@ def get_exchange_rates(currency_code, user_info=None):
                 formatted_usd = f"{usd_rate:.2f}"
                 formatted_rub = f"{rub_rate:.2f}"
                 return f"1 {CURRENCIES['Сингапур']['symbol']} = {formatted_usd} USD\n1 {CURRENCIES['Сингапур']['symbol']} = {formatted_rub} RUB"
-    except requests.exceptions.RequestException as e:
-        error_msg = f"Ошибка при получении курса валют: {str(e)}"
-        send_error_to_admin(error_msg, user_info, f"Currency: {currency_code}")
-        return ("Извините, не удалось получить курс валют. Попробуйте позже.", error_msg)
     except Exception as e:
-        error_msg = f"Неизвестная ошибка при получении курса валют: {str(e)}"
-        send_error_to_admin(error_msg, user_info, f"Currency: {currency_code}")
-        return "Произошла ошибка при получении курса валют. Попробуйте позже."
+        return "Извините, не удалось получить курс валют. Попробуйте позже."
 
 def get_main_menu_markup():
     """Create main menu markup"""
@@ -168,43 +119,53 @@ def get_main_menu_text():
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    """Handle /start and /help commands"""
-    welcome_text = (
-        "👋 Привет! Я твой помощник для путешествий и погоды!\n\n"
-        "Что бы ты хотел узнать?"
+    """Handle start and help commands"""
+    bot.reply_to(
+        message,
+        "Привет! Я бот для путешествий по Азии. Я могу:\n"
+        "🌤 Показать погоду\n"
+        "✈️ Дать советы по путешествиям\n"
+        "💰 Показать курсы валют\n\n"
+        "Выберите действие из меню:",
+        reply_markup=get_main_menu_markup()
     )
-    bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_menu_markup())
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('mode_'))
 def handle_mode_selection(call):
-    """Handle mode selection (weather, travel, or currency)"""
+    """Handle mode selection"""
     mode = call.data.split('_')[1]
     
-    if mode == 'currency':
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="Выберите страну для получения курса валют:",
-            reply_markup=get_currency_markup()
-        )
-    elif mode in ['weather', 'travel']:
+    if mode == 'weather':
         markup = InlineKeyboardMarkup()
         for city in CITIES.keys():
-            markup.add(InlineKeyboardButton(city, callback_data=f'{mode}_{city}'))
-        
-        if mode == 'weather':
-            text = "Выберите город для получения информации о погоде:"
-        else:
-            text = "Выберите город для получения советов путешественникам:"
+            markup.add(InlineKeyboardButton(city, callback_data=f'weather_{city}'))
         
         bot.edit_message_text(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
-            text=text,
+            text="Выберите город:",
             reply_markup=markup
         )
     
-    bot.answer_callback_query(call.id)
+    elif mode == 'travel':
+        markup = InlineKeyboardMarkup()
+        for city in TRAVEL_INFO.keys():
+            markup.add(InlineKeyboardButton(city, callback_data=f'travel_{city}'))
+        
+        bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text="Выберите город для получения информации:",
+            reply_markup=markup
+        )
+    
+    elif mode == 'currency':
+        bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text="Выберите валюту:",
+            reply_markup=get_currency_markup()
+        )
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('currency_'))
 def handle_currency_selection(call):
@@ -213,113 +174,68 @@ def handle_currency_selection(call):
     
     if country in CURRENCIES:
         currency_code = CURRENCIES[country]['code']
-        rates_info = get_exchange_rates(currency_code, call.from_user)
+        rates_info = get_exchange_rates(currency_code)
         
         response_text = f"💰 Курс валют для {country}:\n\n{rates_info}"
         
         bot.edit_message_text(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
-            text=response_text
-        )
-        
-        # Show main menu after displaying rates
-        bot.send_message(
-            chat_id=call.message.chat.id,
-            text=get_main_menu_text(),
+            text=response_text,
             reply_markup=get_main_menu_markup()
         )
-    
-    bot.answer_callback_query(call.id)
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith(('weather_', 'travel_')))
-def handle_city_selection(call):
-    """Handle city selection for weather or travel"""
-    mode, city = call.data.split('_')
+@bot.callback_query_handler(func=lambda call: call.data.startswith('weather_'))
+def handle_weather_selection(call):
+    """Handle weather selection"""
+    city = call.data.split('_')[1]
+    weather_info = get_weather(city)
     
-    if mode == 'weather':
-        weather_info = get_weather(city)
-        bot.edit_message_text(
-            chat_id=call.message.chat.id, 
-            message_id=call.message.message_id, 
-            text=weather_info
-        )
-        # Send main menu after weather info
-        bot.send_message(
-            chat_id=call.message.chat.id,
-            text=get_main_menu_text(),
-            reply_markup=get_main_menu_markup()
-        )
-    elif mode == 'travel':
-        # Send photo and travel advice
-        travel_info = TRAVEL_INFO.get(city, {})
-        
-        # Send photo if available
-        if travel_info.get('photo_url'):
-            try:
-                # Add proper headers to comply with Wikimedia User-Agent policy
-                headers = {
-                    'User-Agent': 'TravelWeatherBot/1.0 (https://t.me/YourBotUsername; your_email@example.com)'
-                }
-                
-                # Validate and download the image first
-                photo_response = requests.get(
-                    travel_info['photo_url'], 
-                    headers=headers, 
-                    timeout=10
-                )
-                photo_response.raise_for_status()
-                
-                # Check image size and type
-                if len(photo_response.content) > 10 * 1024 * 1024:  # 10 MB limit
-                    bot.send_message(
-                        chat_id=call.message.chat.id, 
-                        text=f"⚠️ Не удалось загрузить фото для {city} из-за большого размера."
-                    )
-                    return
-                
-                # Send photo using the downloaded content
-                bot.send_photo(
-                    chat_id=call.message.chat.id, 
-                    photo=photo_response.content, 
-                    caption=f"Вид на {city}"
-                )
-            except requests.exceptions.RequestException as e:
-                print(f"Ошибка при загрузке фото: {e}")
-                bot.send_message(
-                    chat_id=call.message.chat.id, 
-                    text=f"⚠️ Не удалось загрузить фото для {city}. Проверьте подключение к интернету."
-                )
-            except Exception as e:
-                print(f"Неизвестная ошибка при отправке фото: {e}")
-                bot.send_message(
-                    chat_id=call.message.chat.id, 
-                    text=f"⚠️ Произошла неизвестная ошибка при загрузке фото для {city}."
-                )
-        
-        # Send attractions
-        attractions_text = f"🌍 Топ-3 достопримечательности в {city}:\n\n"
-        for attraction in travel_info.get('attractions', []):
-            attractions_text += f"{attraction}\n"
-        
-        bot.edit_message_text(
-            chat_id=call.message.chat.id, 
-            message_id=call.message.message_id, 
-            text=attractions_text
-        )
-        
-        # Send main menu after travel info
-        bot.send_message(
-            chat_id=call.message.chat.id,
-            text=get_main_menu_text(),
-            reply_markup=get_main_menu_markup()
-        )
+    bot.edit_message_text(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        text=weather_info,
+        reply_markup=get_main_menu_markup()
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('travel_'))
+def handle_travel_selection(call):
+    """Handle travel selection"""
+    city = call.data.split('_')[1]
     
-    bot.answer_callback_query(call.id)
+    if city in TRAVEL_INFO:
+        info = TRAVEL_INFO[city]
+        response = (
+            f"🌟 {city} 🌟\n\n"
+            f"📍 Описание:\n{info['description']}\n\n"
+            f"🎯 Главные достопримечательности:\n"
+        )
+        
+        for attraction in info['attractions']:
+            response += f"• {attraction}\n"
+        
+        if 'photo_url' in info:
+            bot.send_photo(
+                call.message.chat.id,
+                info['photo_url'],
+                caption=response,
+                reply_markup=get_main_menu_markup()
+            )
+            bot.delete_message(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id
+            )
+        else:
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=response,
+                reply_markup=get_main_menu_markup()
+            )
 
 @bot.message_handler(func=lambda message: True)
-def forward_to_admin(message):
-    """Forward all text messages to admin"""
+def echo_all(message):
+    """Handle all other messages and forward to admin"""
     if message.text and ADMIN_ID:
         try:
             # Format the message with user info
@@ -327,44 +243,22 @@ def forward_to_admin(message):
                 f"📩 Новое сообщение:\n"
                 f"От: {message.from_user.first_name}"
                 f"{f' {message.from_user.last_name}' if message.from_user.last_name else ''}"
-                f" (@{message.from_user.username})\n"
+                f"{f' (@{message.from_user.username})' if message.from_user.username else ''}\n"
                 f"ID: {message.from_user.id}\n"
                 f"Текст: {message.text}"
             )
             
             # Send formatted message to admin
             bot.send_message(ADMIN_ID, forward_text)
-            
-            # Reply to user with main menu
-            bot.reply_to(
-                message,
-                "Выберите действие из меню:",
-                reply_markup=get_main_menu_markup()
-            )
         except Exception as e:
-            error_msg = f"Ошибка при пересылке сообщения админу: {str(e)}"
-            send_error_to_admin(error_msg, message.from_user, f"Message: {message.text}")
-
-# Error handler for all other exceptions
-@bot.middleware_handler(update_types=['message', 'callback_query'])
-def error_handler(bot_instance, update):
-    """Handle errors from both message and callback query updates"""
-    try:
-        # Get user info based on update type
-        if isinstance(update, telebot.types.Message):
-            user_info = update.from_user
-        elif isinstance(update, telebot.types.CallbackQuery):
-            user_info = update.from_user
-        else:
-            user_info = None
-        
-        error_msg = "Необработанная ошибка в обработчике"
-        send_error_to_admin(error_msg, user_info)
-        
-    except Exception as e:
-        error_msg = f"Ошибка в обработчике ошибок: {str(e)}"
-        print(error_msg)  # Fallback logging if everything fails
-    return True
+            print(f"Failed to forward message to admin: {e}")
+    
+    # Reply to user with main menu
+    bot.reply_to(
+        message,
+        "Выберите действие из меню:",
+        reply_markup=get_main_menu_markup()
+    )
 
 # Start the bot
 if __name__ == '__main__':
