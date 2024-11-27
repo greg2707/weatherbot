@@ -20,6 +20,7 @@ bot = telebot.TeleBot(os.getenv('TELEGRAM_BOT_TOKEN'))
 # OpenWeather API configuration
 OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
 WEATHER_URL = 'https://api.openweathermap.org/data/2.5/weather'
+EXCHANGE_API_KEY = os.getenv("EXCHANGE_API_KEY")
 
 # Admin configuration
 ADMIN_ID = os.getenv('ADMIN_TELEGRAM_ID')  # Your Telegram ID
@@ -116,7 +117,7 @@ def get_weather(city):
 def get_exchange_rates(currency_code, user_info=None):
     """Get exchange rates for a currency"""
     try:
-        url = f'https://v6.exchangerate-api.com/v6/{os.getenv("EXCHANGE_API_KEY")}/latest/{currency_code}'
+        url = f'https://v6.exchangerate-api.com/v6/{EXCHANGE_API_KEY}/latest/{currency_code}'
         response = requests.get(url)
         response.raise_for_status()
         data = response.json()
@@ -136,7 +137,7 @@ def get_exchange_rates(currency_code, user_info=None):
     except requests.exceptions.RequestException as e:
         error_msg = f"Ошибка при получении курса валют: {str(e)}"
         send_error_to_admin(error_msg, user_info, f"Currency: {currency_code}")
-        return "Извините, не удалось получить курс валют. Попробуйте позже."
+        return ("Извините, не удалось получить курс валют. Попробуйте позже.", error_msg)
     except Exception as e:
         error_msg = f"Неизвестная ошибка при получении курса валют: {str(e)}"
         send_error_to_admin(error_msg, user_info, f"Currency: {currency_code}")
