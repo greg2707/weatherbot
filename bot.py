@@ -4,6 +4,8 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 from travel_info import TRAVEL_INFO
+import traceback
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -32,6 +34,38 @@ CURRENCIES = {
     'Таиланд': {'code': 'THB', 'symbol': '฿'},
     'Китай': {'code': 'CNY', 'symbol': '¥'}
 }
+
+def send_error_to_admin(error_msg, user_info=None, additional_info=None):
+    """Send error information to admin"""
+    if not ADMIN_ID:
+        return
+    
+    try:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        error_text = f"🚨 Ошибка!\n\nВремя: {timestamp}\n"
+        
+        if user_info:
+            error_text += f"\n👤 Пользователь:\n"
+            error_text += f"ID: {user_info.id}\n"
+            error_text += f"Имя: {user_info.first_name}"
+            if user_info.last_name:
+                error_text += f" {user_info.last_name}"
+            if user_info.username:
+                error_text += f"\n@{user_info.username}"
+        
+        error_text += f"\n\n❌ Ошибка:\n{error_msg}"
+        
+        if additional_info:
+            error_text += f"\n\n📌 Доп. информация:\n{additional_info}"
+        
+        # Add stack trace for developer context
+        stack_trace = traceback.format_exc()
+        if stack_trace != "NoneType: None\n":
+            error_text += f"\n\n🔍 Stack Trace:\n{stack_trace}"
+        
+        bot.send_message(ADMIN_ID, error_text)
+    except Exception as e:
+        print(f"Failed to send error to admin: {e}")
 
 def get_weather(city):
     """Fetch weather data for a specific city from OpenWeather API"""
@@ -66,8 +100,43 @@ def get_weather(city):
             f"💧 Влажность: {weather_info['humidity']}%\n"
             f"💨 Скорость ветра: {weather_info['wind_speed']} км/ч"
         )
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Ошибка при получении данных о погоде: {str(e)}"
+        send_error_to_admin(error_msg, additional_info=f"City: {city}")
+        return f"Извините, не удалось получить данные о погоде для {city}. Попробуйте позже."
     except Exception as e:
-        return f"Извините, не удалось получить данные о погоде для {city}. Ошибка: {str(e)}"
+        error_msg = f"Неизвестная ошибка при получении погоды: {str(e)}"
+        send_error_to_admin(error_msg, additional_info=f"City: {city}")
+        return f"Извините, произошла ошибка. Попробуйте позже."
+
+def get_exchange_rates(currency_code, user_info=None):
+    """Get exchange rates for a currency"""
+    try:
+        url = f'https://v6.exchangerate-api.com/v6/{os.getenv("EXCHANGE_API_KEY")}/latest/{currency_code}'
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        
+        if response.status_code == 200:
+            usd_rate = data['conversion_rates']['USD']
+            rub_rate = data['conversion_rates']['RUB']
+            
+            if currency_code in ['THB', 'CNY']:
+                formatted_usd = f"{1/usd_rate:.2f}"
+                formatted_rub = f"{1/rub_rate:.2f}"
+                return f"1 USD = {CURRENCIES['Китай']['symbol'] if currency_code == 'CNY' else CURRENCIES['Таиланд']['symbol']}{formatted_usd}\n1 RUB = {CURRENCIES['Китай']['symbol'] if currency_code == 'CNY' else CURRENCIES['Таиланд']['symbol']}{formatted_rub}"
+            else:
+                formatted_usd = f"{usd_rate:.2f}"
+                formatted_rub = f"{rub_rate:.2f}"
+                return f"1 {CURRENCIES['Сингапур']['symbol']} = {formatted_usd} USD\n1 {CURRENCIES['Сингапур']['symbol']} = {formatted_rub} RUB"
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Ошибка при получении курса валют: {str(e)}"
+        send_error_to_admin(error_msg, user_info, f"Currency: {currency_code}")
+        return "Извините, не удалось получить курс валют. Попробуйте позже."
+    except Exception as e:
+        error_msg = f"Неизвестная ошибка при получении курса валют: {str(e)}"
+        send_error_to_admin(error_msg, user_info, f"Currency: {currency_code}")
+        return "Произошла ошибка при получении курса валют. Попробуйте позже."
 
 def get_main_menu_markup():
     """Create main menu markup"""
@@ -87,33 +156,6 @@ def get_currency_markup():
     for country in CURRENCIES.keys():
         markup.add(InlineKeyboardButton(country, callback_data=f'currency_{country}'))
     return markup
-
-def get_exchange_rates(currency_code):
-    """Get exchange rates for a currency"""
-    try:
-        # Using exchangerate-api.com for free currency conversion
-        url = f'https://v6.exchangerate-api.com/v6/{os.getenv("EXCHANGE_API_KEY")}/latest/{currency_code}'
-        response = requests.get(url)
-        data = response.json()
-        
-        if response.status_code == 200:
-            usd_rate = data['conversion_rates']['USD']
-            rub_rate = data['conversion_rates']['RUB']
-            
-            # Format rates to 2 decimal places
-            if currency_code in ['THB', 'CNY']:  # For currencies with lower value
-                formatted_usd = f"{1/usd_rate:.2f}"
-                formatted_rub = f"{1/rub_rate:.2f}"
-                return f"1 USD = {CURRENCIES['Китай']['symbol'] if currency_code == 'CNY' else CURRENCIES['Таиланд']['symbol']}{formatted_usd}\n1 RUB = {CURRENCIES['Китай']['symbol'] if currency_code == 'CNY' else CURRENCIES['Таиланд']['symbol']}{formatted_rub}"
-            else:
-                formatted_usd = f"{usd_rate:.2f}"
-                formatted_rub = f"{rub_rate:.2f}"
-                return f"1 {CURRENCIES['Сингапур']['symbol']} = {formatted_usd} USD\n1 {CURRENCIES['Сингапур']['symbol']} = {formatted_rub} RUB"
-        else:
-            return "Извините, не удалось получить курс валют. Попробуйте позже."
-    except Exception as e:
-        print(f"Error getting exchange rates: {e}")
-        return "Произошла ошибка при получении курса валют. Попробуйте позже."
 
 def get_main_menu_text():
     """Get main menu text"""
@@ -166,7 +208,7 @@ def handle_currency_selection(call):
     
     if country in CURRENCIES:
         currency_code = CURRENCIES[country]['code']
-        rates_info = get_exchange_rates(currency_code)
+        rates_info = get_exchange_rates(currency_code, call.from_user)
         
         response_text = f"💰 Курс валют для {country}:\n\n{rates_info}"
         
@@ -295,7 +337,19 @@ def forward_to_admin(message):
                 reply_markup=get_main_menu_markup()
             )
         except Exception as e:
-            print(f"Error forwarding message to admin: {e}")
+            error_msg = f"Ошибка при пересылке сообщения админу: {str(e)}"
+            send_error_to_admin(error_msg, message.from_user, f"Message: {message.text}")
+
+# Error handler for all other exceptions
+@bot.middleware_handler(update_types=['message', 'callback_query'])
+def error_handler(bot_instance, update):
+    try:
+        raise
+    except Exception as e:
+        error_msg = f"Необработанная ошибка: {str(e)}"
+        user_info = update.message.from_user if hasattr(update, 'message') else update.callback_query.from_user
+        send_error_to_admin(error_msg, user_info)
+        return True
 
 # Start the bot
 if __name__ == '__main__':

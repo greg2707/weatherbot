@@ -42,7 +42,6 @@ jobs:
           key: ${{ secrets.DROPLET_SSH_KEY }}
           passphrase: ${{ secrets.DROPLET_PASSPHRASE }}
           envs: DOCKER_HUB_USERNAME,IMAGE_NAME,GITHUB_SHA
-          target: "weatherbot"
           script: |
             # Pull the new image
             docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
