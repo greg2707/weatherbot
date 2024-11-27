@@ -9,7 +9,7 @@ from travel_info import TRAVEL_INFO
 load_dotenv()
 
 # Initialize bot with your token
-bot = telebot.TeleBot(os.getenv('TELEGRAM_BOT_TOKEN_TEST'))
+bot = telebot.TeleBot(os.getenv('TELEGRAM_BOT_TOKEN'))
 
 # OpenWeather API configuration
 OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
