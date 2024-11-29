@@ -1,16 +1,92 @@
 import os
 import requests
 import telebot
+import logging
+from logging.handlers import RotatingFileHandler
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 from travel_info import TRAVEL_INFO
 from datetime import datetime
 
+# Configure logging
+def setup_logging():
+    # Create logs directory if it doesn't exist
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+
+    # Configure root logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    console_handler.setFormatter(console_formatter)
+    logger.addHandler(console_handler)
+
+    # File handler for all logs
+    file_handler = RotatingFileHandler(
+        'logs/bot.log',
+        maxBytes=1024*1024,  # 1MB
+        backupCount=5,
+        encoding='utf-8'
+    )
+    file_handler.setLevel(logging.INFO)
+    file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(file_formatter)
+    logger.addHandler(file_handler)
+
+    # File handler for errors only
+    error_handler = RotatingFileHandler(
+        'logs/error.log',
+        maxBytes=1024*1024,  # 1MB
+        backupCount=5,
+        encoding='utf-8'
+    )
+    error_handler.setLevel(logging.ERROR)
+    error_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    error_handler.setFormatter(error_formatter)
+    logger.addHandler(error_handler)
+
+    return logger
+
+# Initialize logging
+logger = setup_logging()
+
 # Load environment variables
 load_dotenv()
 
+# Validate required environment variables
+def validate_env_variables():
+    required_vars = {
+        'TELEGRAM_BOT_TOKEN': 'Telegram Bot Token',
+        'OPENWEATHER_API_KEY': 'OpenWeather API Key',
+        'EXCHANGE_API_KEY': 'Exchange Rate API Key',
+        'ADMIN_TELEGRAM_ID': 'Admin Telegram ID'
+    }
+    
+    missing_vars = []
+    for var, description in required_vars.items():
+        if not os.getenv(var):
+            missing_vars.append(f"{description} ({var})")
+    
+    if missing_vars:
+        error_msg = "Missing required environment variables: " + ", ".join(missing_vars)
+        logger.critical(error_msg)
+        raise ValueError(error_msg)
+
+# Validate environment variables before starting
+validate_env_variables()
+
 # Initialize bot with your token
-bot = telebot.TeleBot(os.getenv('TELEGRAM_BOT_TOKEN2'))
+bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+try:
+    bot = telebot.TeleBot(bot_token)
+    logger.info("Bot initialized successfully")
+except Exception as e:
+    logger.critical(f"Failed to initialize bot: {e}")
+    raise
 
 # OpenWeather API configuration
 OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
@@ -69,6 +145,7 @@ def get_weather(city):
             f"💨 Скорость ветра: {weather_info['wind_speed']} км/ч"
         )
     except Exception as e:
+        logger.error(f"Failed to get weather data for {city}: {e}")
         return f"Извините, не удалось получить данные о погоде для {city}. Попробуйте позже."
 
 def get_exchange_rates(currency_code):
@@ -92,6 +169,7 @@ def get_exchange_rates(currency_code):
                 formatted_rub = f"{rub_rate:.2f}"
                 return f"1 {CURRENCIES['Сингапур']['symbol']} = {formatted_usd} USD\n1 {CURRENCIES['Сингапур']['symbol']} = {formatted_rub} RUB"
     except Exception as e:
+        logger.error(f"Failed to get exchange rates for {currency_code}: {e}")
         return "Извините, не удалось получить курс валют. Попробуйте позже."
 
 def get_main_menu_markup():
@@ -230,7 +308,7 @@ def handle_travel_selection(call):
                     message_id=call.message.message_id
                 )
             except Exception as photo_error:
-                print(f"Failed to send photo: {photo_error}")
+                logger.error(f"Failed to send photo for {city}: {photo_error}")
                 # If photo fails, just send text
                 bot.edit_message_text(
                     chat_id=call.message.chat.id,
@@ -239,7 +317,7 @@ def handle_travel_selection(call):
                     reply_markup=get_main_menu_markup()
                 )
         except Exception as e:
-            print(f"Error handling travel info: {e}")
+            logger.error(f"Error handling travel info for {city}: {e}")
             bot.edit_message_text(
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
@@ -265,7 +343,7 @@ def echo_all(message):
             # Send formatted message to admin
             bot.send_message(ADMIN_ID, forward_text)
         except Exception as e:
-            print(f"Failed to forward message to admin: {e}")
+            logger.error(f"Failed to forward message to admin: {e}")
     
     # Reply to user with main menu
     bot.reply_to(
@@ -276,5 +354,10 @@ def echo_all(message):
 
 # Start the bot
 if __name__ == '__main__':
-    print("Бот запущен...")
-    bot.infinity_polling()
+    logger.info("Starting the bot...")
+    try:
+        bot.infinity_polling()
+        logger.info("Bot is running...")
+    except Exception as e:
+        logger.critical(f"Bot crashed: {e}")
+        raise
