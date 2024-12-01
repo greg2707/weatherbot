@@ -33,3 +33,4 @@ var/
 Thumbs.db
 
 secrets-examples.txt
+.code-workspace

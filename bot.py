@@ -7,6 +7,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 from travel_info import TRAVEL_INFO
 from datetime import datetime
+import pytz
 
 # Configure logging
 def setup_logging():
@@ -62,8 +63,7 @@ def validate_env_variables():
     required_vars = {
         'TELEGRAM_BOT_TOKEN': 'Telegram Bot Token',
         'OPENWEATHER_API_KEY': 'OpenWeather API Key',
-        'EXCHANGE_API_KEY': 'Exchange Rate API Key',
-        'ADMIN_TELEGRAM_ID': 'Admin Telegram ID'
+        'EXCHANGE_API_KEY': 'Exchange Rate API Key'
     }
     
     missing_vars = []
@@ -93,15 +93,28 @@ OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
 WEATHER_URL = 'https://api.openweathermap.org/data/2.5/weather'
 EXCHANGE_API_KEY = os.getenv("EXCHANGE_API_KEY")
 
-# Admin configuration
-ADMIN_ID = os.getenv('ADMIN_TELEGRAM_ID')
-
-# City coordinates
+# City coordinates and timezone information
 CITIES = {
-    'Сингапур': {'lat': 1.29, 'lon': 103.85},
-    'Пекин': {'lat': 39.90, 'lon': 116.41},
-    'Шанхай': {'lat': 31.23, 'lon': 121.47},
-    'Пхукет': {'lat': 7.89, 'lon': 98.40}
+    'Сингапур': {
+        'lat': 1.29,
+        'lon': 103.85,
+        'timezone': 'Asia/Singapore'
+    },
+    'Пекин': {
+        'lat': 39.90,
+        'lon': 116.41,
+        'timezone': 'Asia/Shanghai'
+    },
+    'Шанхай': {
+        'lat': 31.23,
+        'lon': 121.47,
+        'timezone': 'Asia/Shanghai'
+    },
+    'Пхукет': {
+        'lat': 7.89,
+        'lon': 98.40,
+        'timezone': 'Asia/Bangkok'
+    }
 }
 
 # Currency codes
@@ -172,15 +185,43 @@ def get_exchange_rates(currency_code):
         logger.error(f"Failed to get exchange rates for {currency_code}: {e}")
         return "Извините, не удалось получить курс валют. Попробуйте позже."
 
+def get_time_differences():
+    """Get current time differences between Moscow and all cities"""
+    moscow_tz = pytz.timezone('Europe/Moscow')
+    moscow_time = datetime.now(moscow_tz)
+    
+    time_diff_text = "🕒 Разница во времени с Москвой:\n\n"
+    
+    for city, info in CITIES.items():
+        city_tz = pytz.timezone(info['timezone'])
+        city_time = datetime.now(city_tz)
+        
+        # Calculate time difference in hours
+        diff_hours = (city_time.utcoffset() - moscow_time.utcoffset()).total_seconds() / 3600
+        
+        # Format the time string
+        city_time_str = city_time.strftime('%H:%M')
+        
+        # Create difference string
+        if diff_hours > 0:
+            diff_str = f"+{int(diff_hours)}"
+        else:
+            diff_str = str(int(diff_hours))
+            
+        time_diff_text += f"{city}: {city_time_str} ({diff_str}ч)\n"
+    
+    return time_diff_text
+
 def get_main_menu_markup():
     """Create main menu markup"""
     markup = InlineKeyboardMarkup()
     markup.row(
-        InlineKeyboardButton("🌤 Погода", callback_data='mode_weather'),
-        InlineKeyboardButton("✈️ Трэвел советы", callback_data='mode_travel')
+        InlineKeyboardButton("🌤 Погода", callback_data="weather"),
+        InlineKeyboardButton("💰 Курс валют", callback_data="currency")
     )
     markup.row(
-        InlineKeyboardButton("💰 Курс валют", callback_data='mode_currency')
+        InlineKeyboardButton("ℹ️ О стране", callback_data="travel"),
+        InlineKeyboardButton("🕒 Время", callback_data="time")
     )
     return markup
 
@@ -208,46 +249,46 @@ def send_welcome(message):
         reply_markup=get_main_menu_markup()
     )
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('mode_'))
-def handle_mode_selection(call):
-    """Handle mode selection"""
-    mode = call.data.split('_')[1]
+@bot.callback_query_handler(func=lambda call: call.data == "weather")
+def handle_weather_selection(call):
+    """Handle weather selection"""
+    markup = InlineKeyboardMarkup()
+    for city in CITIES.keys():
+        markup.add(InlineKeyboardButton(city, callback_data=f'weather_{city}'))
     
-    if mode == 'weather':
-        markup = InlineKeyboardMarkup()
-        for city in CITIES.keys():
-            markup.add(InlineKeyboardButton(city, callback_data=f'weather_{city}'))
-        
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="Выберите город:",
-            reply_markup=markup
-        )
-    
-    elif mode == 'travel':
-        markup = InlineKeyboardMarkup()
-        for city in TRAVEL_INFO.keys():
-            markup.add(InlineKeyboardButton(city, callback_data=f'travel_{city}'))
-        
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="Выберите город для получения информации:",
-            reply_markup=markup
-        )
-    
-    elif mode == 'currency':
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="Выберите валюту:",
-            reply_markup=get_currency_markup()
-        )
+    bot.edit_message_text(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        text="Выберите город:",
+        reply_markup=markup
+    )
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('currency_'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('weather_'))
+def handle_weather_city_selection(call):
+    """Handle weather city selection"""
+    city = call.data.split('_')[1]
+    weather_info = get_weather(city)
+    
+    bot.edit_message_text(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        text=weather_info,
+        reply_markup=get_main_menu_markup()
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data == "currency")
 def handle_currency_selection(call):
     """Handle currency selection"""
+    bot.edit_message_text(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        text="Выберите валюту:",
+        reply_markup=get_currency_markup()
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('currency_'))
+def handle_currency_country_selection(call):
+    """Handle currency country selection"""
     country = call.data.split('_')[1]
     
     if country in CURRENCIES:
@@ -263,22 +304,23 @@ def handle_currency_selection(call):
             reply_markup=get_main_menu_markup()
         )
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('weather_'))
-def handle_weather_selection(call):
-    """Handle weather selection"""
-    city = call.data.split('_')[1]
-    weather_info = get_weather(city)
+@bot.callback_query_handler(func=lambda call: call.data == "travel")
+def handle_travel_selection(call):
+    """Handle travel selection"""
+    markup = InlineKeyboardMarkup()
+    for city in TRAVEL_INFO.keys():
+        markup.add(InlineKeyboardButton(city, callback_data=f'travel_{city}'))
     
     bot.edit_message_text(
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,
-        text=weather_info,
-        reply_markup=get_main_menu_markup()
+        text="Выберите город для получения информации:",
+        reply_markup=markup
     )
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('travel_'))
-def handle_travel_selection(call):
-    """Handle travel selection"""
+def handle_travel_city_selection(call):
+    """Handle travel city selection"""
     city = call.data.split('_')[1]
     
     if city in TRAVEL_INFO:
@@ -325,30 +367,33 @@ def handle_travel_selection(call):
                 reply_markup=get_main_menu_markup()
             )
 
+@bot.callback_query_handler(func=lambda call: call.data == "time")
+def handle_time_selection(call):
+    """Handle time difference selection"""
+    try:
+        time_diff_text = get_time_differences()
+        
+        bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text=time_diff_text,
+            reply_markup=get_main_menu_markup()
+        )
+    except Exception as e:
+        logger.error(f"Error handling time differences: {e}")
+        bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text="Извините, произошла ошибка при получении информации о времени. Попробуйте позже.",
+            reply_markup=get_main_menu_markup()
+        )
+
 @bot.message_handler(func=lambda message: True)
-def echo_all(message):
-    """Handle all other messages and forward to admin"""
-    if message.text and ADMIN_ID:
-        try:
-            # Format the message with user info
-            forward_text = (
-                f"📩 Новое сообщение:\n"
-                f"От: {message.from_user.first_name}"
-                f"{f' {message.from_user.last_name}' if message.from_user.last_name else ''}"
-                f"{f' (@{message.from_user.username})' if message.from_user.username else ''}\n"
-                f"ID: {message.from_user.id}\n"
-                f"Текст: {message.text}"
-            )
-            
-            # Send formatted message to admin
-            bot.send_message(ADMIN_ID, forward_text)
-        except Exception as e:
-            logger.error(f"Failed to forward message to admin: {e}")
-    
-    # Reply to user with main menu
+def handle_message(message):
+    """Handle all other messages by directing users to the menu"""
     bot.reply_to(
         message,
-        "Выберите действие из меню:",
+        "Пожалуйста, воспользуйтесь меню для взаимодействия с ботом:",
         reply_markup=get_main_menu_markup()
     )
 
